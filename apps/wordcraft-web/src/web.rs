@@ -73,7 +73,6 @@ pub fn start() {
                         app,
                         inbox,
                         messages,
-                        saves,
                         #[cfg(feature = "self-hosted-update")]
                         updates: crate::updates::browser(cc.egui_ctx.clone()),
                     }))
@@ -99,40 +98,8 @@ struct WebShell {
     app: WordApp,
     inbox: Inbox,
     messages: Rc<RefCell<Vec<String>>>,
-    saves: Rc<PickerSaves>,
     #[cfg(feature = "self-hosted-update")]
     updates: crate::updates::Updates<craft_update::web::Client>,
-}
-
-/// Saves the browser's save picker finishes after `download` has returned (#728). The app marks
-/// the document saved as soon as `download` returns, so a cancelled or failed picker save must
-/// mark it unsaved again, and the `beforeunload` guard keeps warning while one is in flight.
-#[derive(Default)]
-struct PickerSaves {
-    /// Picker saves started and not yet written and closed.
-    pending: Cell<u32>,
-    /// Picker saves that didn't write the file: (name, error, or `None` when cancelled).
-    unsaved: RefCell<Vec<(String, Option<String>)>>,
-}
-
-impl WebShell {
-    /// A picker save that didn't happen leaves the document with unsaved changes.
-    fn settle_picker_saves(&mut self) {
-        let unsaved = std::mem::take(&mut *self.saves.unsaved.borrow_mut());
-        for (name, error) in unsaved {
-            // Only a save in a format that keeps everything marked the document saved.
-            if wordcraft_ui_egui::keeps_everything(&name) {
-                self.app.session.dirty = true;
-            }
-            if let Some(error) = error {
-                let msg = wordcraft_ui_egui::i18n::fmt(
-                    wordcraft_ui_egui::i18n::t("Couldn't download {name}: {error}"),
-                    &[("name", &name), ("error", &error)],
-                );
-                self.app.status(msg);
-            }
-        }
-    }
 }
 
 impl eframe::App for WebShell {
